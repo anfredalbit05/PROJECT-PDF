@@ -68,6 +68,90 @@
             color: green;
             font-weight: bold;
         }
+
+                /* Loader animation */
+        .loader {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #ddd;
+            border-top: 4px solid #0d6efd;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Disabled button */
+        button:disabled {
+            background: #9bbcf9;
+            cursor: not-allowed;
+        }
+
+        /* Full screen overlay */
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.45);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 9999;
+            backdrop-filter: blur(2px);
+        }
+
+        #loadingOverlay p {
+            color: white;
+            margin-top: 12px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 350px;
+            text-align: left;
+        }
+
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .modal-content button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+        }
+
+        .cancel {
+            background: #777;
+        }
+
+
     </style>
 </head>
 <body>
@@ -79,17 +163,71 @@
     <form id="leadForm">
         <input type="text" name="name" placeholder="Your full name" required>
         <input type="email" name="email" placeholder="Your email address" required>
-        <button type="submit">Download PDF</button>
+        <button type="submit" id="submitBtn">
+            Download PDF
+        </button>
+
+<div id="loadingOverlay">
+    <div class="loader"></div>
+    <p>Processing your request...</p>
+</div>
+
     </form>
 
     <div id="message"></div>
 </div>
 
+<!-- Confirmation Modal -->
+<div id="confirmModal" class="modal">
+    <div class="modal-content">
+        <h3>Confirm Your Details</h3>
+        <p><strong>Name:</strong> <span id="confirmName"></span></p>
+        <p><strong>Email:</strong> <span id="confirmEmail"></span></p>
+
+        <button id="confirmBtn">Confirm</button>
+        <button id="cancelBtn" class="cancel">Cancel</button>
+    </div>
+</div>
+
 <script>
-document.getElementById('leadForm').addEventListener('submit', function(e){
+const form = document.getElementById('leadForm');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const message = document.getElementById('message');
+const submitBtn = document.getElementById('submitBtn');
+
+const confirmModal = document.getElementById('confirmModal');
+const confirmName = document.getElementById('confirmName');
+const confirmEmail = document.getElementById('confirmEmail');
+const confirmBtn = document.getElementById('confirmBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+
+// Handle normal submit → SHOW CONFIRMATION MODAL
+form.addEventListener('submit', function(e) {
     e.preventDefault();
 
-    let formData = new FormData(this);
+    let name = form.name.value;
+    let email = form.email.value;
+
+    confirmName.textContent = name;
+    confirmEmail.textContent = email;
+
+    confirmModal.style.display = 'flex';
+});
+
+// If cancel → close modal
+cancelBtn.onclick = () => {
+    confirmModal.style.display = 'none';
+};
+
+// If confirm → send form to Laravel
+confirmBtn.onclick = () => {
+
+    confirmModal.style.display = 'none';
+    message.innerHTML = "";
+    loadingOverlay.style.display = 'flex';
+    submitBtn.disabled = true;
+
+    let formData = new FormData(form);
 
     fetch('/submit', {
         method: 'POST',
@@ -98,17 +236,36 @@ document.getElementById('leadForm').addEventListener('submit', function(e){
     })
     .then(response => response.json())
     .then(data => {
+
+        loadingOverlay.style.display = 'none';
+
+        if (data.error === 'email_exists') {
+            message.style.color = "red";
+            message.innerHTML = "Email already use. Please use a different one.";
+            submitBtn.disabled = false;
+            return;
+        }
+
         if (data.success) {
-            document.getElementById('message').innerHTML = "Redirecting to download...";
+            message.style.color = "green";
+            submitBtn.disabled = false;
+
             setTimeout(() => {
                 window.location = data.download_url;
             }, 800);
-        } else {
-            document.getElementById('message').innerHTML = "Something went wrong.";
         }
+    })
+    .catch(() => {
+        loadingOverlay.style.display = 'none';
+        message.style.color = "red";
+        message.innerHTML = "Server error.";
+        submitBtn.disabled = false;
     });
-});
+};
 </script>
+
+
 
 </body>
 </html>
+
